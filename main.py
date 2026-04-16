@@ -153,7 +153,7 @@ rows.sort(key=lambda x: x[1])
 # Write headers
 next_trip_sheet.update(
     range_name='A1:B1',
-    values=[['Amount', 'Ingredient']]
+    values=[['Amt', 'Ingredient']]
 )
 
 # Write data starting at A2
@@ -181,6 +181,8 @@ for other_thing in other_things_list:
 ##############################################
 ### REPORT ERRORS TO error_reporting_sheet ###
 ##############################################
+
+error_reporting_sheet.clear()
 
 for i in range(len(error_messages)):
     error_reporting_sheet.update_cell(i+1, 1, error_messages[i])

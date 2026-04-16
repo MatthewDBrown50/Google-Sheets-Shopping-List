@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="941d4bb3-4315-4d2b-85d8-01fcde3e40e5" name="Changes" comment="Initial commit">
+    <list default="true" id="941d4bb3-4315-4d2b-85d8-01fcde3e40e5" name="Changes" comment="Added functionality for calculating calories and adding non-recipe items to list.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
     </list>
@@ -87,11 +87,20 @@
       <option name="project" value="LOCAL" />
       <updated>1774913663504</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="Added functionality for calculating calories and adding non-recipe items to list.">
+      <option name="closed" value="true" />
+      <created>1776302626448</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1776302626448</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Initial commit" />
-    <option name="LAST_COMMIT_MESSAGE" value="Initial commit" />
+    <MESSAGE value="Added functionality for calculating calories and adding non-recipe items to list." />
+    <option name="LAST_COMMIT_MESSAGE" value="Added functionality for calculating calories and adding non-recipe items to list." />
   </component>
 </project>
