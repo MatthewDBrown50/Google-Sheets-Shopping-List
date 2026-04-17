@@ -129,8 +129,8 @@ for i, recipe_name in enumerate(recipe_names, start=1):
     # Add the total calories for the recipe to column B in meal_selection_sheet
     meal_selection_sheet.update_cell(i,2, f'Total calories in recipe: {recipe_calories}')
 
-    # Portion into 400-500 calorie servings and report servings count in column C of meal_selection_sheet
-    number_of_servings = math.floor(recipe_calories/400)
+    # Portion into servings of no more than 450 calories and report servings count in column C of meal_selection_sheet
+    number_of_servings = math.ceil(recipe_calories/450)
     meal_selection_sheet.update_cell(i,3, f'Servings: {number_of_servings}')
 
     # Report calories per serving in Column D of meal_selection_sheet
