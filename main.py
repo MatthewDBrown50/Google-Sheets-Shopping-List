@@ -7,6 +7,9 @@ from google.oauth2.service_account import Credentials
 # Use the following command to build to .exe:
     # pyinstaller --onefile main.py
 
+# Set the target calories for meal portions
+target_calories = 600
+
 ###################################
 ### AUTHENTICATE GOOGLE ACCOUNT ###
 ###################################
@@ -129,8 +132,8 @@ for i, recipe_name in enumerate(recipe_names, start=1):
     # Add the total calories for the recipe to column B in meal_selection_sheet
     meal_selection_sheet.update_cell(i,2, f'Total calories in recipe: {recipe_calories}')
 
-    # Portion into servings of no more than 450 calories and report servings count in column C of meal_selection_sheet
-    number_of_servings = math.ceil(recipe_calories/450)
+    # Portion into servings of the intended number of calories (+/- 50) and report servings count in column C of meal_selection_sheet
+    number_of_servings = math.ceil(recipe_calories/(target_calories + 50))
     meal_selection_sheet.update_cell(i,3, f'Servings: {number_of_servings}')
 
     # Report calories per serving in Column D of meal_selection_sheet
