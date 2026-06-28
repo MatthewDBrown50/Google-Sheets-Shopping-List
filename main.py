@@ -1,11 +1,10 @@
+# LEGACY PC / GOOGLE SHEETS — Primary app is Streamlit + Supabase (see app.py and DEPLOY.md).
+# Runs against Google Sheets via service account when SHOPPING_LIST_* env vars are set.
 import os
 import sys
 import math
 import gspread
 from google.oauth2.service_account import Credentials
-
-# Use the following command to build to .exe:
-    # pyinstaller --onefile main.py
 
 # Set the target calories for meal portions
 target_calories = 600
@@ -151,7 +150,7 @@ next_trip_sheet.batch_clear(["A:B"])
 rows = [[amount, name] for name, amount in shopping_list.items()]
 
 # Sort by ingredient name
-rows.sort(key=lambda x: x[1])
+rows.sort(key=lambda x: x[1].lower())
 
 # Write headers
 next_trip_sheet.update(

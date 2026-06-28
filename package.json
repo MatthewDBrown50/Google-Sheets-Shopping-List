@@ -1,0 +1,26 @@
+{
+  "name": "shoppinglist",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "clasp:login": "clasp login --no-localhost",
+    "clasp:push": "clasp push",
+    "clasp:setup": "clasp create --type sheets --parentId 1eAY-S8deVCH1i3RAfgVajw3c55CtqP0Y3r9RQ9irTzs --title \"Shopping List Generator\" --rootDir apps-script",
+    "clasp:deploy": "clasp push"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MatthewDBrown50/Google-Sheets-Shopping-List.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/MatthewDBrown50/Google-Sheets-Shopping-List/issues"
+  },
+  "homepage": "https://github.com/MatthewDBrown50/Google-Sheets-Shopping-List#readme",
+  "devDependencies": {
+    "@google/clasp": "^3.3.0"
+  }
+}

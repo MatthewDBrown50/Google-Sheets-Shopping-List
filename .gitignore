@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.streamlit/secrets.toml
+.env
+*credentials*.json
+client_secret.json
+dist/
+build/
+.clasp.json
+node_modules/
+.cursor/
+.idea/
+scripts/*.png
