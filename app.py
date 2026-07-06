@@ -202,6 +202,9 @@ PAGE_KEY_BY_LABEL = {label: key for key, label, _ in PAGES}
 PAGE_LABEL_BY_KEY = {key: label for key, label, _ in PAGES}
 
 
+COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
+
+
 def _cookie_manager() -> stx.CookieManager:
     if "cookie_manager" not in st.session_state:
         st.session_state.cookie_manager = stx.CookieManager(key="shopping_list_auth")
@@ -224,13 +227,21 @@ def _set_auth_cookie(expected: str) -> None:
     _cookie_manager().set(
         "sl_auth",
         _auth_token(expected),
-        max_age=60 * 60 * 24 * 30,
+        max_age=COOKIE_MAX_AGE,
         path="/",
     )
 
 
 def _clear_auth_cookie() -> None:
     _cookie_manager().delete("sl_auth")
+
+
+def _init_auth_cookies() -> None:
+    """Mount CookieManager and wait one rerun for browser cookies to load."""
+    _cookie_manager().get_all()
+    if not st.session_state.get("cookies_bootstrapped"):
+        st.session_state.cookies_bootstrapped = True
+        st.rerun()
 
 
 def render_app_header() -> None:
@@ -332,6 +343,7 @@ def page_meal_selection() -> None:
         selected_ids = [name_to_id[n] for n in slots if n in name_to_id]
         db.save_meal_selection(sb, selected_ids)
         db.save_other_items(sb, other_lines)
+        db.clear_trip_checked_items(sb)
         st.success("Saved — shopping list updated.")
         st.rerun()
 
@@ -367,7 +379,7 @@ def page_next_trip() -> None:
         "To change meals, use the **Meal Selection** tab."
     )
 
-    _, ingredients, recipes, meal_ids, other_items, _ = load_data()
+    sb, ingredients, recipes, meal_ids, other_items, _ = load_data()
     result = generate_shopping_list(ingredients, recipes, meal_ids, other_items)
 
     if result.errors:
@@ -379,11 +391,8 @@ def page_next_trip() -> None:
         st.info("No meals selected yet. Open the **Meal Selection** tab to choose meals.")
         return
 
-    if "crossed_off_trip" not in st.session_state:
-        st.session_state.crossed_off_trip = set()
-
     current_keys = {row.display_name for row in result.shopping_list}
-    st.session_state.crossed_off_trip &= current_keys
+    crossed_off = db.fetch_trip_checked_items(sb) & current_keys
 
     table_rows = [
         {
@@ -394,9 +403,9 @@ def page_next_trip() -> None:
         for row in result.shopping_list
     ]
 
-    updated = render_trip_shopping_list(table_rows, st.session_state.crossed_off_trip)
-    if updated is not None and updated != st.session_state.crossed_off_trip:
-        st.session_state.crossed_off_trip = updated
+    updated = render_trip_shopping_list(table_rows, crossed_off)
+    if updated is not None and updated != crossed_off:
+        db.save_trip_checked_items(sb, updated & current_keys)
         st.rerun()
 
 
@@ -620,6 +629,7 @@ def render_navigation() -> str:
 
 def main() -> None:
     hide_sidebar()
+    _init_auth_cookies()
     require_auth()
     render_app_header()
 

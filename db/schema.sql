@@ -34,6 +34,11 @@ create table if not exists other_items (
   name text not null
 );
 
+create table if not exists trip_checked_items (
+  item_key text not null primary key,
+  updated_at timestamptz not null default now()
+);
+
 create index if not exists idx_recipe_ingredients_recipe on recipe_ingredients (recipe_id);
 create index if not exists idx_recipe_ingredients_ingredient on recipe_ingredients (ingredient_id);
 
@@ -43,15 +48,25 @@ alter table recipes enable row level security;
 alter table recipe_ingredients enable row level security;
 alter table meal_selection enable row level security;
 alter table other_items enable row level security;
+alter table trip_checked_items enable row level security;
 
 create policy "Allow all on ingredients" on ingredients for all using (true) with check (true);
 create policy "Allow all on recipes" on recipes for all using (true) with check (true);
 create policy "Allow all on recipe_ingredients" on recipe_ingredients for all using (true) with check (true);
 create policy "Allow all on meal_selection" on meal_selection for all using (true) with check (true);
 create policy "Allow all on other_items" on other_items for all using (true) with check (true);
+create policy "Allow all on trip_checked_items" on trip_checked_items for all using (true) with check (true);
 
 -- Run once when upgrading from a schema that included ingredient categories:
 -- alter table ingredients drop column if exists category;
 
 -- Run once when upgrading to add recipe instructions:
 -- alter table recipes add column if not exists instructions text not null default '';
+
+-- Run once when upgrading to persist Next Trip crossed-off items:
+-- create table if not exists trip_checked_items (
+--   item_key text not null primary key,
+--   updated_at timestamptz not null default now()
+-- );
+-- alter table trip_checked_items enable row level security;
+-- create policy "Allow all on trip_checked_items" on trip_checked_items for all using (true) with check (true);

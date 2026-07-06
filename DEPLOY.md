@@ -79,15 +79,29 @@ Theme (dark) and layout are in [`.streamlit/config.toml`](.streamlit/config.toml
 ## 5. iPhone / daily use
 
 1. Open the Streamlit URL in **Safari**.
-2. Log in with `APP_PASSWORD` (Enter key works on the login form).
+2. Log in once with `APP_PASSWORD` — your device stays signed in until you tap **Log out**.
 3. **Share → Add to Home Screen** for quick access.
 4. **Meal Selection** — pick meals and save.
-5. **Next Trip** — shopping list; tap a row to cross items off (persists until you change meals or log out).
+5. **Next Trip** — shopping list; tap a row to cross items off (saved in Supabase, syncs across devices).
 6. **Ingredients** / **Recipes** — edit catalog and instructions in the app.
 
 ## Notes
 
 - Never commit `.streamlit/secrets.toml`, service account JSON, or `.clasp.json`.
 - Free tier sleeps after inactivity; first load may take a few seconds.
-- Crossed-off items on Next Trip are stored in the browser session (cookie + session state), not in Supabase.
+- Login uses a 1-year cookie per device until **Log out**.
+- Crossed-off items persist in Supabase until you **Save & regenerate** on Meal Selection (new trip).
 - Recipe instructions live in Supabase (`recipes.instructions`); `data/recipe_instructions.json` is a local fallback only.
+
+## Upgrading an existing Supabase project
+
+Run new migration blocks from [`db/schema.sql`](db/schema.sql) in the SQL Editor as needed. For crossed-off persistence:
+
+```sql
+create table if not exists trip_checked_items (
+  item_key text not null primary key,
+  updated_at timestamptz not null default now()
+);
+alter table trip_checked_items enable row level security;
+create policy "Allow all on trip_checked_items" on trip_checked_items for all using (true) with check (true);
+```
