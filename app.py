@@ -198,8 +198,9 @@ APP_CSS = """
     }
     div[data-testid="stElementContainer"]:has(.trip-table-header)
         ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button {
-        display: block !important;
-        justify-content: start !important;
+        display: flex !important;
+        justify-content: flex-start !important;
+        align-items: flex-start !important;
         text-align: left !important;
         width: 100% !important;
         border: none !important;
@@ -213,9 +214,25 @@ APP_CSS = """
         -webkit-tap-highlight-color: transparent;
     }
     div[data-testid="stElementContainer"]:has(.trip-table-header)
+        ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button > div,
+    div[data-testid="stElementContainer"]:has(.trip-table-header)
+        ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button > div > span {
+        display: flex !important;
+        justify-content: flex-start !important;
+        align-items: flex-start !important;
+        width: 100% !important;
+    }
+    div[data-testid="stElementContainer"]:has(.trip-table-header)
+        ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] [data-testid="stMarkdownContainer"] {
+        width: 100% !important;
+        text-align: left !important;
+    }
+    div[data-testid="stElementContainer"]:has(.trip-table-header)
         ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button p {
         text-align: left !important;
-        white-space: pre-wrap !important;
+        white-space: pre !important;
+        width: 100% !important;
+        margin: 0 !important;
     }
     div[data-testid="stElementContainer"]:has(.trip-table-header)
         ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button[kind="secondary"] {
