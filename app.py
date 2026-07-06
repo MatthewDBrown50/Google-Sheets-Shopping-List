@@ -14,6 +14,7 @@ import streamlit.components.v1 as components
 from core.generator import generate_shopping_list
 from core.models import RecipeIngredient
 from db import client as db
+from db import trip_checked
 from db.instructions_store import recipe_instructions
 
 
@@ -343,7 +344,7 @@ def page_meal_selection() -> None:
         selected_ids = [name_to_id[n] for n in slots if n in name_to_id]
         db.save_meal_selection(sb, selected_ids)
         db.save_other_items(sb, other_lines)
-        db.clear_trip_checked_items(sb)
+        trip_checked.clear_trip_checked_items(sb)
         st.success("Saved — shopping list updated.")
         st.rerun()
 
@@ -392,7 +393,7 @@ def page_next_trip() -> None:
         return
 
     current_keys = {row.display_name for row in result.shopping_list}
-    crossed_off = db.fetch_trip_checked_items(sb) & current_keys
+    crossed_off = trip_checked.fetch_trip_checked_items(sb) & current_keys
 
     table_rows = [
         {
@@ -405,7 +406,7 @@ def page_next_trip() -> None:
 
     updated = render_trip_shopping_list(table_rows, crossed_off)
     if updated is not None and updated != crossed_off:
-        db.save_trip_checked_items(sb, updated & current_keys)
+        trip_checked.save_trip_checked_items(sb, updated & current_keys)
         st.rerun()
 
 

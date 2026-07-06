@@ -98,33 +98,6 @@ def save_other_items(client: Client, names: list[str]) -> None:
     ).execute()
 
 
-def fetch_trip_checked_items(client: Client) -> set[str]:
-    try:
-        rows = client.table("trip_checked_items").select("item_key").execute().data or []
-    except APIError:
-        return set()
-    return {r["item_key"] for r in rows}
-
-
-def save_trip_checked_items(client: Client, keys: set[str]) -> None:
-    try:
-        client.table("trip_checked_items").delete().neq("item_key", "").execute()
-        if not keys:
-            return
-        client.table("trip_checked_items").insert(
-            [{"item_key": key} for key in sorted(keys)]
-        ).execute()
-    except APIError:
-        pass
-
-
-def clear_trip_checked_items(client: Client) -> None:
-    try:
-        client.table("trip_checked_items").delete().neq("item_key", "").execute()
-    except APIError:
-        pass
-
-
 def fetch_recipe_names(client: Client) -> list[tuple[int, str]]:
     rows = client.table("recipes").select("id, name").order("name").execute().data or []
     return [(int(r["id"]), r["name"]) for r in rows]
