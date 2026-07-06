@@ -4,12 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import json
 import os
 
 import extra_streamlit_components as stx
 import streamlit as st
-import streamlit.components.v1 as components
 
 from core.generator import generate_shopping_list
 from core.models import RecipeIngredient
@@ -23,109 +21,69 @@ def format_amount(amount: float) -> str:
     return f"{round(float(amount), 2):.2f}".rstrip("0").rstrip(".")
 
 
-def render_trip_shopping_list(rows: list[dict[str, str]], crossed_off: set[str]) -> set[str] | None:
-    """Interactive shopping list; tap an ingredient to cross off / restore."""
-    rows_json = json.dumps(rows)
-    crossed_json = json.dumps(sorted(crossed_off))
-    row_height = 44
-    height = max(120, len(rows) * row_height + 56)
+def _trip_widget_key(item_key: str) -> str:
+    return "trip_cb_" + hashlib.md5(item_key.encode()).hexdigest()
 
-    html = f"""
-    <div id="trip-list">
-      <table>
-        <thead>
-          <tr><th>Amt</th><th>Ingredient</th></tr>
-        </thead>
-        <tbody id="trip-body"></tbody>
-      </table>
-    </div>
-    <style>
-      #trip-list {{
-        font-family: "Source Sans Pro", sans-serif;
-        color: #fafafa;
-      }}
-      #trip-list table {{
-        width: 100%;
-        border-collapse: collapse;
-      }}
-      #trip-list th {{
-        text-align: left;
-        padding: 0.5rem 0.75rem;
-        border-bottom: 1px solid #757575;
-        color: #b0b0b0;
-        font-weight: 600;
-      }}
-      #trip-list td {{
-        padding: 0.5rem 0.75rem;
-        border-bottom: 1px solid #2a2f36;
-        vertical-align: middle;
-      }}
-      #trip-list td.amt {{
-        width: 4rem;
-      }}
-      #trip-list tr.trip-row {{
-        cursor: pointer;
-        user-select: none;
-        -webkit-tap-highlight-color: transparent;
-      }}
-      #trip-list tr.trip-row.crossed td {{
-        color: #ef5350;
-        text-decoration: line-through;
-      }}
-      #trip-list tr:last-child td {{
-        border-bottom: none;
-      }}
-    </style>
-    <script>
-      const rows = {rows_json};
-      let crossed = new Set({crossed_json});
 
-      function sendCrossed() {{
-        const payload = JSON.stringify([...crossed].sort());
-        window.parent.postMessage({{
-          type: "streamlit:setComponentValue",
-          value: payload,
-        }}, "*");
-      }}
+def _ensure_trip_crossed(sb, current_keys: set[str]) -> set[str]:
+    """Load crossed-off keys from session or Supabase; drop keys no longer on the list."""
+    if "trip_crossed" not in st.session_state:
+        st.session_state.trip_crossed = trip_checked.fetch_trip_checked_items(sb) & current_keys
+    else:
+        st.session_state.trip_crossed &= current_keys
+    return st.session_state.trip_crossed
 
-      function renderRows() {{
-        const body = document.getElementById("trip-body");
-        body.innerHTML = "";
-        rows.forEach((row) => {{
-          const tr = document.createElement("tr");
-          tr.className = "trip-row" + (crossed.has(row.key) ? " crossed" : "");
-          const amt = document.createElement("td");
-          amt.className = "amt";
-          amt.textContent = row.amt;
-          const ing = document.createElement("td");
-          ing.className = "ingredient";
-          ing.textContent = row.ingredient;
-          tr.addEventListener("click", () => {{
-            if (crossed.has(row.key)) {{
-              crossed.delete(row.key);
-            }} else {{
-              crossed.add(row.key);
-            }}
-            tr.classList.toggle("crossed");
-            sendCrossed();
-          }});
-          tr.appendChild(amt);
-          tr.appendChild(ing);
-          body.appendChild(tr);
-        }});
-      }}
 
-      renderRows();
-    </script>
-    """
+def _clear_trip_crossed_state() -> None:
+    st.session_state.trip_crossed = set()
+    for key in list(st.session_state.keys()):
+        if str(key).startswith("trip_cb_"):
+            del st.session_state[key]
 
-    result = components.html(html, height=height, scrolling=False)
-    if result is None:
-        return None
-    try:
-        return set(json.loads(result))
-    except (json.JSONDecodeError, TypeError):
-        return None
+
+def _on_trip_checkbox_change(item_key: str) -> None:
+    widget_key = _trip_widget_key(item_key)
+    checked = st.session_state[widget_key]
+    crossed: set[str] = st.session_state.trip_crossed
+    if checked:
+        crossed.add(item_key)
+    else:
+        crossed.discard(item_key)
+    trip_checked.save_trip_checked_items(db.get_client(), crossed)
+
+
+def render_trip_shopping_list(
+    table_rows: list[dict[str, str]],
+    crossed_off: set[str],
+) -> None:
+    """Shopping list with checkboxes; toggles persist to session state and Supabase."""
+    amt_col, ing_col = st.columns([1, 8])
+    with amt_col:
+        st.markdown("**Amt**")
+    with ing_col:
+        st.markdown("**Ingredient**")
+
+    for row in table_rows:
+        item_key = row["key"]
+        widget_key = _trip_widget_key(item_key)
+        is_crossed = item_key in crossed_off
+        if widget_key not in st.session_state:
+            st.session_state[widget_key] = is_crossed
+
+        amt_col, ing_col = st.columns([1, 8])
+        amt_class = "trip-amt crossed" if is_crossed else "trip-amt"
+        with amt_col:
+            st.markdown(
+                f'<span class="{amt_class}">{row["amt"]}</span>',
+                unsafe_allow_html=True,
+            )
+        with ing_col:
+            st.checkbox(
+                row["ingredient"],
+                key=widget_key,
+                on_change=_on_trip_checkbox_change,
+                args=(item_key,),
+            )
 
 
 def db_error_message(exc: Exception) -> str:
@@ -183,6 +141,20 @@ APP_CSS = """
     div[data-testid="stDataEditor"] div[contenteditable="true"] {
         border: none !important;
         box-shadow: none !important;
+    }
+
+    .trip-amt {
+        display: block;
+        padding-top: 0.45rem;
+        color: #fafafa;
+    }
+    .trip-amt.crossed {
+        color: #ef5350;
+        text-decoration: line-through;
+    }
+    div[data-testid="stCheckbox"]:has(input:checked) label p {
+        color: #ef5350 !important;
+        text-decoration: line-through;
     }
 </style>
 """
@@ -345,6 +317,7 @@ def page_meal_selection() -> None:
         db.save_meal_selection(sb, selected_ids)
         db.save_other_items(sb, other_lines)
         trip_checked.clear_trip_checked_items(sb)
+        _clear_trip_crossed_state()
         st.success("Saved — shopping list updated.")
         st.rerun()
 
@@ -393,7 +366,7 @@ def page_next_trip() -> None:
         return
 
     current_keys = {row.display_name for row in result.shopping_list}
-    crossed_off = trip_checked.fetch_trip_checked_items(sb) & current_keys
+    crossed_off = _ensure_trip_crossed(sb, current_keys)
 
     table_rows = [
         {
@@ -404,10 +377,7 @@ def page_next_trip() -> None:
         for row in result.shopping_list
     ]
 
-    updated = render_trip_shopping_list(table_rows, crossed_off)
-    if updated is not None and updated != crossed_off:
-        trip_checked.save_trip_checked_items(sb, updated & current_keys)
-        st.rerun()
+    render_trip_shopping_list(table_rows, crossed_off)
 
 
 def page_ingredients() -> None:
