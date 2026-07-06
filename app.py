@@ -5,11 +5,11 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+from urllib.parse import quote, unquote
 
 import extra_streamlit_components as stx
 import streamlit as st
 
-from components.trip_list import trip_list
 from core.generator import generate_shopping_list
 from core.models import RecipeIngredient
 from db import client as db
@@ -33,44 +33,43 @@ def _ensure_trip_crossed(sb, current_keys: set[str]) -> set[str]:
 
 def _clear_trip_crossed_state() -> None:
     st.session_state.trip_crossed = set()
-    st.session_state.pop("trip_last_toggle", None)
 
 
-def _toggle_trip_item(sb, current_keys: set[str], item_key: str) -> None:
-    crossed = _ensure_trip_crossed(sb, current_keys)
-    if item_key not in current_keys:
+def _handle_trip_toggle_query(sb, current_keys: set[str]) -> None:
+    """Toggle a crossed-off item from ?trip_toggle= (set by row link taps)."""
+    raw = st.query_params.get("trip_toggle")
+    if not raw:
         return
-    if item_key in crossed:
-        crossed.discard(item_key)
-    else:
-        crossed.add(item_key)
-    trip_checked.save_trip_checked_items(sb, crossed)
+    key = unquote(raw)
+    crossed = _ensure_trip_crossed(sb, current_keys)
+    if key in current_keys:
+        if key in crossed:
+            crossed.discard(key)
+        else:
+            crossed.add(key)
+        trip_checked.save_trip_checked_items(sb, crossed)
+    del st.query_params["trip_toggle"]
+    st.query_params["tab"] = "trip"
+    st.rerun()
 
 
 def render_trip_shopping_list(
-    sb,
-    current_keys: set[str],
     table_rows: list[dict[str, str]],
     crossed_off: set[str],
 ) -> None:
-    """Tap-to-cross table; row taps flow through a Streamlit custom component."""
-    event = trip_list(
-        rows=table_rows,
-        crossed=sorted(crossed_off),
-        key="trip_shopping_list",
+    """Tap-to-cross list using page links (no iframe; works on mobile and Streamlit Cloud)."""
+    st.markdown(
+        '<div class="trip-table-header"><span>Amt</span><span>Ingredient</span></div>',
+        unsafe_allow_html=True,
     )
-    if not event or not isinstance(event, dict):
-        return
-    item_key = event.get("key")
-    seq = event.get("seq")
-    if not item_key or seq is None:
-        return
-    token = f"{item_key}:{seq}"
-    if st.session_state.get("trip_last_toggle") == token:
-        return
-    st.session_state.trip_last_toggle = token
-    _toggle_trip_item(sb, current_keys, str(item_key))
-    st.rerun()
+    for row in table_rows:
+        item_key = row["key"]
+        is_crossed = item_key in crossed_off
+        marker_class = "trip-row-marker crossed" if is_crossed else "trip-row-marker"
+        st.markdown(f'<div class="{marker_class}"></div>', unsafe_allow_html=True)
+        label = f"{row['amt']:>4}  {row['ingredient']}".strip()
+        href = f"?tab=trip&trip_toggle={quote(item_key)}"
+        st.link_button(label, href, use_container_width=True)
 
 
 def db_error_message(exc: Exception) -> str:
@@ -128,6 +127,44 @@ APP_CSS = """
     div[data-testid="stDataEditor"] div[contenteditable="true"] {
         border: none !important;
         box-shadow: none !important;
+    }
+
+    .trip-table-header {
+        display: grid;
+        grid-template-columns: 3.25rem 1fr;
+        gap: 0.5rem;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #757575;
+        color: #b0b0b0;
+        font-weight: 600;
+    }
+    .trip-row-marker {
+        display: none;
+    }
+    div[data-testid="stLinkButton"] a {
+        display: block !important;
+        justify-content: start !important;
+        text-align: left !important;
+        border: none !important;
+        border-bottom: 1px solid #2a2f36 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        color: #fafafa !important;
+        padding: 0.65rem 0 !important;
+        font-weight: 400 !important;
+        white-space: pre-wrap !important;
+        -webkit-tap-highlight-color: transparent;
+    }
+    div[data-testid="stLinkButton"] a p {
+        text-align: left !important;
+        white-space: pre-wrap !important;
+    }
+    div[data-testid="stVerticalBlock"] > div[data-testid="element-container"]:has(.trip-row-marker.crossed)
+        + div[data-testid="element-container"] [data-testid="stLinkButton"] a,
+    div[data-testid="stVerticalBlock"] > div[data-testid="element-container"]:has(.trip-row-marker.crossed)
+        + div[data-testid="element-container"] [data-testid="stLinkButton"] a p {
+        color: #ef5350 !important;
+        text-decoration: line-through !important;
     }
 </style>
 """
@@ -339,6 +376,7 @@ def page_next_trip() -> None:
         return
 
     current_keys = {row.display_name for row in result.shopping_list}
+    _handle_trip_toggle_query(sb, current_keys)
     crossed_off = _ensure_trip_crossed(sb, current_keys)
 
     table_rows = [
@@ -350,7 +388,7 @@ def page_next_trip() -> None:
         for row in result.shopping_list
     ]
 
-    render_trip_shopping_list(sb, current_keys, table_rows, crossed_off)
+    render_trip_shopping_list(table_rows, crossed_off)
 
 
 def page_ingredients() -> None:
