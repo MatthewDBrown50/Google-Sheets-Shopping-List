@@ -14,8 +14,9 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 from trip_row_visual import trip_row_looks_crossed
 
-URL = sys.argv[1] if len(sys.argv) > 1 else "https://code-bear-shopping-list.streamlit.app/~/+/?tab=trip"
+ARGS = [a for a in sys.argv[1:] if a != "--mobile"]
 MOBILE = "--mobile" in sys.argv
+URL = ARGS[0] if ARGS else "https://code-bear-shopping-list.streamlit.app/~/+/?tab=trip"
 
 
 def _login(page, password: str) -> bool:
