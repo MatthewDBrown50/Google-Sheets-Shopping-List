@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import os
+from urllib.parse import unquote
 
 import extra_streamlit_components as stx
 import streamlit as st
+import streamlit.components.v1 as components
 
 from core.generator import generate_shopping_list
 from core.models import RecipeIngredient
@@ -21,10 +24,6 @@ def format_amount(amount: float) -> str:
     return f"{round(float(amount), 2):.2f}".rstrip("0").rstrip(".")
 
 
-def _trip_widget_key(item_key: str) -> str:
-    return "trip_cb_" + hashlib.md5(item_key.encode()).hexdigest()
-
-
 def _ensure_trip_crossed(sb, current_keys: set[str]) -> set[str]:
     """Load crossed-off keys from session or Supabase; drop keys no longer on the list."""
     if "trip_crossed" not in st.session_state:
@@ -36,54 +35,123 @@ def _ensure_trip_crossed(sb, current_keys: set[str]) -> set[str]:
 
 def _clear_trip_crossed_state() -> None:
     st.session_state.trip_crossed = set()
-    for key in list(st.session_state.keys()):
-        if str(key).startswith("trip_cb_"):
-            del st.session_state[key]
 
 
-def _on_trip_checkbox_change(item_key: str) -> None:
-    widget_key = _trip_widget_key(item_key)
-    checked = st.session_state[widget_key]
-    crossed: set[str] = st.session_state.trip_crossed
-    if checked:
-        crossed.add(item_key)
-    else:
-        crossed.discard(item_key)
-    trip_checked.save_trip_checked_items(db.get_client(), crossed)
+def _handle_trip_toggle_query(sb, current_keys: set[str]) -> None:
+    """Toggle a crossed-off item from ?trip_toggle= query param (set by the HTML list)."""
+    raw = st.query_params.get("trip_toggle")
+    if not raw:
+        return
+    key = unquote(raw)
+    crossed = _ensure_trip_crossed(sb, current_keys)
+    if key in current_keys:
+        if key in crossed:
+            crossed.discard(key)
+        else:
+            crossed.add(key)
+        trip_checked.save_trip_checked_items(sb, crossed)
+    del st.query_params["trip_toggle"]
+    st.query_params["tab"] = "trip"
+    st.rerun()
 
 
 def render_trip_shopping_list(
     table_rows: list[dict[str, str]],
     crossed_off: set[str],
 ) -> None:
-    """Shopping list with checkboxes; toggles persist to session state and Supabase."""
-    amt_col, ing_col = st.columns([1, 8])
-    with amt_col:
-        st.markdown("**Amt**")
-    with ing_col:
-        st.markdown("**Ingredient**")
+    """Tap-to-cross shopping list table; toggles persist via URL query + Supabase."""
+    rows_json = json.dumps(table_rows)
+    crossed_keys = json.dumps(sorted(crossed_off))
+    row_height = 44
+    height = max(120, len(table_rows) * row_height + 56)
 
-    for row in table_rows:
-        item_key = row["key"]
-        widget_key = _trip_widget_key(item_key)
-        is_crossed = item_key in crossed_off
-        if widget_key not in st.session_state:
-            st.session_state[widget_key] = is_crossed
+    html = f"""
+    <div id="trip-list">
+      <table>
+        <thead>
+          <tr><th class="amt">Amt</th><th>Ingredient</th></tr>
+        </thead>
+        <tbody id="trip-body"></tbody>
+      </table>
+    </div>
+    <style>
+      #trip-list {{
+        font-family: "Source Sans Pro", sans-serif;
+        color: #fafafa;
+        -webkit-text-size-adjust: 100%;
+      }}
+      #trip-list table {{
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }}
+      #trip-list th {{
+        text-align: left;
+        padding: 0.5rem 0.75rem 0.5rem 0;
+        border-bottom: 1px solid #757575;
+        color: #b0b0b0;
+        font-weight: 600;
+      }}
+      #trip-list th.amt {{
+        width: 3.25rem;
+      }}
+      #trip-list td {{
+        padding: 0.65rem 0.75rem 0.65rem 0;
+        border-bottom: 1px solid #2a2f36;
+        vertical-align: top;
+        line-height: 1.35;
+      }}
+      #trip-list td.amt {{
+        width: 3.25rem;
+        white-space: nowrap;
+        padding-right: 0.5rem;
+      }}
+      #trip-list td.ingredient {{
+        word-break: break-word;
+      }}
+      #trip-list tr.trip-row {{
+        cursor: pointer;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }}
+      #trip-list tr.trip-row.crossed td {{
+        color: #ef5350;
+        text-decoration: line-through;
+      }}
+      #trip-list tr:last-child td {{
+        border-bottom: none;
+      }}
+    </style>
+    <script>
+      const rows = {rows_json};
+      const crossedKeys = new Set({crossed_keys});
 
-        amt_col, ing_col = st.columns([1, 8])
-        amt_class = "trip-amt crossed" if is_crossed else "trip-amt"
-        with amt_col:
-            st.markdown(
-                f'<span class="{amt_class}">{row["amt"]}</span>',
-                unsafe_allow_html=True,
-            )
-        with ing_col:
-            st.checkbox(
-                row["ingredient"],
-                key=widget_key,
-                on_change=_on_trip_checkbox_change,
-                args=(item_key,),
-            )
+      function toggleRow(key) {{
+        const params = new URLSearchParams(window.parent.location.search);
+        params.set("tab", "trip");
+        params.set("trip_toggle", key);
+        window.parent.location.search = params.toString();
+      }}
+
+      const body = document.getElementById("trip-body");
+      rows.forEach((row) => {{
+        const tr = document.createElement("tr");
+        tr.className = "trip-row" + (crossedKeys.has(row.key) ? " crossed" : "");
+        const amt = document.createElement("td");
+        amt.className = "amt";
+        amt.textContent = row.amt;
+        const ing = document.createElement("td");
+        ing.className = "ingredient";
+        ing.textContent = row.ingredient;
+        tr.addEventListener("click", () => toggleRow(row.key));
+        tr.appendChild(amt);
+        tr.appendChild(ing);
+        body.appendChild(tr);
+      }});
+    </script>
+    """
+
+    components.html(html, height=height, scrolling=False)
 
 
 def db_error_message(exc: Exception) -> str:
@@ -141,20 +209,6 @@ APP_CSS = """
     div[data-testid="stDataEditor"] div[contenteditable="true"] {
         border: none !important;
         box-shadow: none !important;
-    }
-
-    .trip-amt {
-        display: block;
-        padding-top: 0.45rem;
-        color: #fafafa;
-    }
-    .trip-amt.crossed {
-        color: #ef5350;
-        text-decoration: line-through;
-    }
-    div[data-testid="stCheckbox"]:has(input:checked) label p {
-        color: #ef5350 !important;
-        text-decoration: line-through;
     }
 </style>
 """
@@ -366,6 +420,7 @@ def page_next_trip() -> None:
         return
 
     current_keys = {row.display_name for row in result.shopping_list}
+    _handle_trip_toggle_query(sb, current_keys)
     crossed_off = _ensure_trip_crossed(sb, current_keys)
 
     table_rows = [
