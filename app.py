@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import json
 import os
-from urllib.parse import unquote
 
 import extra_streamlit_components as stx
 import streamlit as st
-import streamlit.components.v1 as components
 
+from components.trip_list import trip_list
 from core.generator import generate_shopping_list
 from core.models import RecipeIngredient
 from db import client as db
@@ -35,123 +33,44 @@ def _ensure_trip_crossed(sb, current_keys: set[str]) -> set[str]:
 
 def _clear_trip_crossed_state() -> None:
     st.session_state.trip_crossed = set()
+    st.session_state.pop("trip_last_toggle", None)
 
 
-def _handle_trip_toggle_query(sb, current_keys: set[str]) -> None:
-    """Toggle a crossed-off item from ?trip_toggle= query param (set by the HTML list)."""
-    raw = st.query_params.get("trip_toggle")
-    if not raw:
-        return
-    key = unquote(raw)
+def _toggle_trip_item(sb, current_keys: set[str], item_key: str) -> None:
     crossed = _ensure_trip_crossed(sb, current_keys)
-    if key in current_keys:
-        if key in crossed:
-            crossed.discard(key)
-        else:
-            crossed.add(key)
-        trip_checked.save_trip_checked_items(sb, crossed)
-    del st.query_params["trip_toggle"]
-    st.query_params["tab"] = "trip"
-    st.rerun()
+    if item_key not in current_keys:
+        return
+    if item_key in crossed:
+        crossed.discard(item_key)
+    else:
+        crossed.add(item_key)
+    trip_checked.save_trip_checked_items(sb, crossed)
 
 
 def render_trip_shopping_list(
+    sb,
+    current_keys: set[str],
     table_rows: list[dict[str, str]],
     crossed_off: set[str],
 ) -> None:
-    """Tap-to-cross shopping list table; toggles persist via URL query + Supabase."""
-    rows_json = json.dumps(table_rows)
-    crossed_keys = json.dumps(sorted(crossed_off))
-    row_height = 44
-    height = max(120, len(table_rows) * row_height + 56)
-
-    html = f"""
-    <div id="trip-list">
-      <table>
-        <thead>
-          <tr><th class="amt">Amt</th><th>Ingredient</th></tr>
-        </thead>
-        <tbody id="trip-body"></tbody>
-      </table>
-    </div>
-    <style>
-      #trip-list {{
-        font-family: "Source Sans Pro", sans-serif;
-        color: #fafafa;
-        -webkit-text-size-adjust: 100%;
-      }}
-      #trip-list table {{
-        width: 100%;
-        border-collapse: collapse;
-        table-layout: fixed;
-      }}
-      #trip-list th {{
-        text-align: left;
-        padding: 0.5rem 0.75rem 0.5rem 0;
-        border-bottom: 1px solid #757575;
-        color: #b0b0b0;
-        font-weight: 600;
-      }}
-      #trip-list th.amt {{
-        width: 3.25rem;
-      }}
-      #trip-list td {{
-        padding: 0.65rem 0.75rem 0.65rem 0;
-        border-bottom: 1px solid #2a2f36;
-        vertical-align: top;
-        line-height: 1.35;
-      }}
-      #trip-list td.amt {{
-        width: 3.25rem;
-        white-space: nowrap;
-        padding-right: 0.5rem;
-      }}
-      #trip-list td.ingredient {{
-        word-break: break-word;
-      }}
-      #trip-list tr.trip-row {{
-        cursor: pointer;
-        user-select: none;
-        -webkit-tap-highlight-color: transparent;
-      }}
-      #trip-list tr.trip-row.crossed td {{
-        color: #ef5350;
-        text-decoration: line-through;
-      }}
-      #trip-list tr:last-child td {{
-        border-bottom: none;
-      }}
-    </style>
-    <script>
-      const rows = {rows_json};
-      const crossedKeys = new Set({crossed_keys});
-
-      function toggleRow(key) {{
-        const params = new URLSearchParams(window.parent.location.search);
-        params.set("tab", "trip");
-        params.set("trip_toggle", key);
-        window.parent.location.search = params.toString();
-      }}
-
-      const body = document.getElementById("trip-body");
-      rows.forEach((row) => {{
-        const tr = document.createElement("tr");
-        tr.className = "trip-row" + (crossedKeys.has(row.key) ? " crossed" : "");
-        const amt = document.createElement("td");
-        amt.className = "amt";
-        amt.textContent = row.amt;
-        const ing = document.createElement("td");
-        ing.className = "ingredient";
-        ing.textContent = row.ingredient;
-        tr.addEventListener("click", () => toggleRow(row.key));
-        tr.appendChild(amt);
-        tr.appendChild(ing);
-        body.appendChild(tr);
-      }});
-    </script>
-    """
-
-    components.html(html, height=height, scrolling=False)
+    """Tap-to-cross table; row taps flow through a Streamlit custom component."""
+    event = trip_list(
+        rows=table_rows,
+        crossed=sorted(crossed_off),
+        key="trip_shopping_list",
+    )
+    if not event or not isinstance(event, dict):
+        return
+    item_key = event.get("key")
+    seq = event.get("seq")
+    if not item_key or seq is None:
+        return
+    token = f"{item_key}:{seq}"
+    if st.session_state.get("trip_last_toggle") == token:
+        return
+    st.session_state.trip_last_toggle = token
+    _toggle_trip_item(sb, current_keys, str(item_key))
+    st.rerun()
 
 
 def db_error_message(exc: Exception) -> str:
@@ -420,7 +339,6 @@ def page_next_trip() -> None:
         return
 
     current_keys = {row.display_name for row in result.shopping_list}
-    _handle_trip_toggle_query(sb, current_keys)
     crossed_off = _ensure_trip_crossed(sb, current_keys)
 
     table_rows = [
@@ -432,7 +350,7 @@ def page_next_trip() -> None:
         for row in result.shopping_list
     ]
 
-    render_trip_shopping_list(table_rows, crossed_off)
+    render_trip_shopping_list(sb, current_keys, table_rows, crossed_off)
 
 
 def page_ingredients() -> None:

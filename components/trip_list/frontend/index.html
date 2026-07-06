@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      overflow: hidden;
+    }
+    #trip-list {
+      font-family: "Source Sans Pro", sans-serif;
+      color: #fafafa;
+      -webkit-text-size-adjust: 100%;
+    }
+    #trip-list table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    #trip-list th {
+      text-align: left;
+      padding: 0.5rem 0.75rem 0.5rem 0;
+      border-bottom: 1px solid #757575;
+      color: #b0b0b0;
+      font-weight: 600;
+    }
+    #trip-list th.amt {
+      width: 3.25rem;
+    }
+    #trip-list td {
+      padding: 0.65rem 0.75rem 0.65rem 0;
+      border-bottom: 1px solid #2a2f36;
+      vertical-align: top;
+      line-height: 1.35;
+    }
+    #trip-list td.amt {
+      width: 3.25rem;
+      white-space: nowrap;
+      padding-right: 0.5rem;
+    }
+    #trip-list td.ingredient {
+      word-break: break-word;
+    }
+    #trip-list tr.trip-row {
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #trip-list tr.trip-row.crossed td {
+      color: #ef5350;
+      text-decoration: line-through;
+    }
+    #trip-list tr:last-child td {
+      border-bottom: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="trip-list">
+    <table>
+      <thead>
+        <tr><th class="amt">Amt</th><th>Ingredient</th></tr>
+      </thead>
+      <tbody id="trip-body"></tbody>
+    </table>
+  </div>
+  <script>
+    let clickSeq = 0;
+
+    function sendMessage(payload) {
+      window.parent.postMessage(Object.assign({ isStreamlitMessage: true }, payload), "*");
+    }
+
+    function setFrameHeight() {
+      sendMessage({ type: "streamlit:setFrameHeight", height: document.body.scrollHeight });
+    }
+
+    function onRowClick(itemKey) {
+      clickSeq += 1;
+      sendMessage({
+        type: "streamlit:setComponentValue",
+        value: { key: itemKey, seq: clickSeq },
+      });
+    }
+
+    function render(args) {
+      const rows = args.rows || [];
+      const crossed = new Set(args.crossed || []);
+      const body = document.getElementById("trip-body");
+      body.innerHTML = "";
+
+      rows.forEach((row) => {
+        const tr = document.createElement("tr");
+        tr.className = "trip-row" + (crossed.has(row.key) ? " crossed" : "");
+
+        const amt = document.createElement("td");
+        amt.className = "amt";
+        amt.textContent = row.amt || "";
+
+        const ing = document.createElement("td");
+        ing.className = "ingredient";
+        ing.textContent = row.ingredient || "";
+
+        tr.addEventListener("click", () => onRowClick(row.key));
+        tr.appendChild(amt);
+        tr.appendChild(ing);
+        body.appendChild(tr);
+      });
+
+      setFrameHeight();
+    }
+
+    sendMessage({ type: "streamlit:componentReady", apiVersion: 1 });
+
+    window.addEventListener("message", (event) => {
+      const data = event.data;
+      if (!data || !data.isStreamlitMessage || data.type !== "streamlit:render") {
+        return;
+      }
+      render(data.args || {});
+    });
+  </script>
+</body>
+</html>
