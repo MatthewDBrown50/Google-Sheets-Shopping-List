@@ -65,11 +65,6 @@ def render_trip_shopping_list(
     for row in table_rows:
         item_key = row["key"]
         is_crossed = item_key in crossed_off
-        marker_class = "trip-row-marker crossed" if is_crossed else "trip-row-marker"
-        st.markdown(
-            f'<span class="{marker_class}" aria-hidden="true"> </span>',
-            unsafe_allow_html=True,
-        )
         label = f"{row['amt']:>4}  {row['ingredient']}".strip()
         st.button(
             label,
@@ -77,7 +72,7 @@ def render_trip_shopping_list(
             on_click=_on_trip_row_click,
             args=(item_key,),
             use_container_width=True,
-            type="secondary",
+            type="primary" if is_crossed else "secondary",
         )
 
 
@@ -147,40 +142,50 @@ APP_CSS = """
         color: #b0b0b0;
         font-weight: 600;
     }
-    .trip-row-marker {
-        display: none !important;
-    }
-    div[data-testid="stButton"] button[kind="secondary"] {
+    div[data-testid="stElementContainer"]:has(.trip-table-header)
+        ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button {
         display: block !important;
         justify-content: start !important;
         text-align: left !important;
+        width: 100% !important;
         border: none !important;
         border-bottom: 1px solid #2a2f36 !important;
         border-radius: 0 !important;
         background: transparent !important;
-        color: #fafafa !important;
         padding: 0.65rem 0 !important;
         font-weight: 400 !important;
         white-space: pre-wrap !important;
         box-shadow: none !important;
         -webkit-tap-highlight-color: transparent;
     }
-    div[data-testid="stButton"] button[kind="secondary"] p {
+    div[data-testid="stElementContainer"]:has(.trip-table-header)
+        ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button p {
         text-align: left !important;
         white-space: pre-wrap !important;
     }
-    div[data-testid="stButton"] button[kind="secondary"]:hover,
-    div[data-testid="stButton"] button[kind="secondary"]:focus {
-        background: rgba(255, 255, 255, 0.05) !important;
+    div[data-testid="stElementContainer"]:has(.trip-table-header)
+        ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button[kind="secondary"] {
         color: #fafafa !important;
-        border-color: #2a2f36 !important;
     }
-    div[data-testid="stVerticalBlock"] > div[data-testid="element-container"]:has(.trip-row-marker.crossed)
-        + div[data-testid="element-container"] button[kind="secondary"],
-    div[data-testid="stVerticalBlock"] > div[data-testid="element-container"]:has(.trip-row-marker.crossed)
-        + div[data-testid="element-container"] button[kind="secondary"] p {
+    div[data-testid="stElementContainer"]:has(.trip-table-header)
+        ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button[kind="secondary"] p {
+        color: #fafafa !important;
+    }
+    div[data-testid="stElementContainer"]:has(.trip-table-header)
+        ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button[kind="primary"] {
+        color: #ef5350 !important;
+    }
+    div[data-testid="stElementContainer"]:has(.trip-table-header)
+        ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button[kind="primary"] p {
         color: #ef5350 !important;
         text-decoration: line-through !important;
+    }
+    div[data-testid="stElementContainer"]:has(.trip-table-header)
+        ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button:hover,
+    div[data-testid="stElementContainer"]:has(.trip-table-header)
+        ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button:focus {
+        background: rgba(255, 255, 255, 0.05) !important;
+        border-color: #2a2f36 !important;
     }
 </style>
 """
