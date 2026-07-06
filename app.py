@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
-from urllib.parse import quote, unquote
 
 import extra_streamlit_components as stx
 import streamlit as st
@@ -22,42 +21,43 @@ def format_amount(amount: float) -> str:
     return f"{round(float(amount), 2):.2f}".rstrip("0").rstrip(".")
 
 
-def _ensure_trip_crossed(sb, current_keys: set[str]) -> set[str]:
-    """Load crossed-off keys from session or Supabase; drop keys no longer on the list."""
-    if "trip_crossed" not in st.session_state:
-        st.session_state.trip_crossed = trip_checked.fetch_trip_checked_items(sb) & current_keys
-    else:
-        st.session_state.trip_crossed &= current_keys
-    return st.session_state.trip_crossed
+def _load_trip_crossed(sb, current_keys: set[str]) -> set[str]:
+    """Load crossed-off keys from Supabase (source of truth when rendering the trip page)."""
+    crossed = trip_checked.fetch_trip_checked_items(sb) & current_keys
+    st.session_state.trip_crossed = crossed
+    return crossed
 
 
 def _clear_trip_crossed_state() -> None:
     st.session_state.trip_crossed = set()
+    st.session_state.pop("trip_current_keys", None)
+    for key in list(st.session_state.keys()):
+        if str(key).startswith("trip_row_"):
+            del st.session_state[key]
 
 
-def _handle_trip_toggle_query(sb, current_keys: set[str]) -> None:
-    """Toggle a crossed-off item from ?trip_toggle= (set by row link taps)."""
-    raw = st.query_params.get("trip_toggle")
-    if not raw:
-        return
-    key = unquote(raw)
-    crossed = _ensure_trip_crossed(sb, current_keys)
-    if key in current_keys:
-        if key in crossed:
-            crossed.discard(key)
-        else:
-            crossed.add(key)
-        trip_checked.save_trip_checked_items(sb, crossed)
-    del st.query_params["trip_toggle"]
-    st.query_params["tab"] = "trip"
-    st.rerun()
+def _trip_row_btn_key(item_key: str) -> str:
+    return "trip_row_" + hashlib.md5(item_key.encode()).hexdigest()
+
+
+def _on_trip_row_click(item_key: str) -> None:
+    sb = db.get_client()
+    current_keys = set(st.session_state.get("trip_current_keys") or ())
+    crossed = set(st.session_state.get("trip_crossed") or set())
+    if item_key in crossed:
+        crossed.discard(item_key)
+    else:
+        crossed.add(item_key)
+    crossed &= current_keys
+    st.session_state.trip_crossed = crossed
+    trip_checked.save_trip_checked_items(sb, crossed)
 
 
 def render_trip_shopping_list(
     table_rows: list[dict[str, str]],
     crossed_off: set[str],
 ) -> None:
-    """Tap-to-cross list using page links (no iframe; works on mobile and Streamlit Cloud)."""
+    """Tap-to-cross list using full-width row buttons (works on Streamlit Cloud)."""
     st.markdown(
         '<div class="trip-table-header"><span>Amt</span><span>Ingredient</span></div>',
         unsafe_allow_html=True,
@@ -66,10 +66,19 @@ def render_trip_shopping_list(
         item_key = row["key"]
         is_crossed = item_key in crossed_off
         marker_class = "trip-row-marker crossed" if is_crossed else "trip-row-marker"
-        st.markdown(f'<div class="{marker_class}"></div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<span class="{marker_class}" aria-hidden="true"> </span>',
+            unsafe_allow_html=True,
+        )
         label = f"{row['amt']:>4}  {row['ingredient']}".strip()
-        href = f"?tab=trip&trip_toggle={quote(item_key)}"
-        st.link_button(label, href, use_container_width=True)
+        st.button(
+            label,
+            key=_trip_row_btn_key(item_key),
+            on_click=_on_trip_row_click,
+            args=(item_key,),
+            use_container_width=True,
+            type="secondary",
+        )
 
 
 def db_error_message(exc: Exception) -> str:
@@ -139,9 +148,9 @@ APP_CSS = """
         font-weight: 600;
     }
     .trip-row-marker {
-        display: none;
+        display: none !important;
     }
-    div[data-testid="stLinkButton"] a {
+    div[data-testid="stButton"] button[kind="secondary"] {
         display: block !important;
         justify-content: start !important;
         text-align: left !important;
@@ -153,16 +162,23 @@ APP_CSS = """
         padding: 0.65rem 0 !important;
         font-weight: 400 !important;
         white-space: pre-wrap !important;
+        box-shadow: none !important;
         -webkit-tap-highlight-color: transparent;
     }
-    div[data-testid="stLinkButton"] a p {
+    div[data-testid="stButton"] button[kind="secondary"] p {
         text-align: left !important;
         white-space: pre-wrap !important;
     }
+    div[data-testid="stButton"] button[kind="secondary"]:hover,
+    div[data-testid="stButton"] button[kind="secondary"]:focus {
+        background: rgba(255, 255, 255, 0.05) !important;
+        color: #fafafa !important;
+        border-color: #2a2f36 !important;
+    }
     div[data-testid="stVerticalBlock"] > div[data-testid="element-container"]:has(.trip-row-marker.crossed)
-        + div[data-testid="element-container"] [data-testid="stLinkButton"] a,
+        + div[data-testid="element-container"] button[kind="secondary"],
     div[data-testid="stVerticalBlock"] > div[data-testid="element-container"]:has(.trip-row-marker.crossed)
-        + div[data-testid="element-container"] [data-testid="stLinkButton"] a p {
+        + div[data-testid="element-container"] button[kind="secondary"] p {
         color: #ef5350 !important;
         text-decoration: line-through !important;
     }
@@ -376,8 +392,8 @@ def page_next_trip() -> None:
         return
 
     current_keys = {row.display_name for row in result.shopping_list}
-    _handle_trip_toggle_query(sb, current_keys)
-    crossed_off = _ensure_trip_crossed(sb, current_keys)
+    st.session_state.trip_current_keys = current_keys
+    crossed_off = _load_trip_crossed(sb, current_keys)
 
     table_rows = [
         {
