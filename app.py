@@ -5,9 +5,11 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+import threading
 
 import extra_streamlit_components as stx
 import streamlit as st
+import streamlit.components.v1 as components
 
 from core.generator import generate_shopping_list
 from core.models import RecipeIngredient
@@ -31,9 +33,20 @@ def _load_trip_crossed(sb, current_keys: set[str]) -> set[str]:
 def _clear_trip_crossed_state() -> None:
     st.session_state.trip_crossed = set()
     st.session_state.pop("trip_current_keys", None)
+    st.session_state.pop("trip_keys_token", None)
     for key in list(st.session_state.keys()):
         if str(key).startswith("trip_row_"):
             del st.session_state[key]
+
+
+def _save_trip_crossed_async(crossed: set[str]) -> None:
+    def _save() -> None:
+        try:
+            trip_checked.save_trip_checked_items(db.get_client(), crossed)
+        except Exception:
+            pass
+
+    threading.Thread(target=_save, daemon=True).start()
 
 
 def _trip_row_btn_key(item_key: str) -> str:
@@ -41,23 +54,64 @@ def _trip_row_btn_key(item_key: str) -> str:
 
 
 def _on_trip_row_click(item_key: str) -> None:
-    sb = db.get_client()
     current_keys = set(st.session_state.get("trip_current_keys") or ())
     crossed = set(st.session_state.get("trip_crossed") or set())
     if item_key in crossed:
         crossed.discard(item_key)
     else:
         crossed.add(item_key)
-    crossed &= current_keys
-    st.session_state.trip_crossed = crossed
-    trip_checked.save_trip_checked_items(sb, crossed)
+    st.session_state.trip_crossed = crossed & current_keys
+    _save_trip_crossed_async(set(st.session_state.trip_crossed))
 
 
-def render_trip_shopping_list(
-    table_rows: list[dict[str, str]],
-    crossed_off: set[str],
-) -> None:
-    """Tap-to-cross list using full-width row buttons (works on Streamlit Cloud)."""
+def _mount_trip_instant_click() -> None:
+    """Toggle row styles in the parent document on tap (before server rerun)."""
+    components.html(
+        """
+        <script>
+        (() => {
+          const parent = window.parent;
+          if (parent.__tripInstantClick) return;
+          parent.__tripInstantClick = true;
+          parent.document.addEventListener("click", (event) => {
+            const btn = event.target.closest("button");
+            if (!btn) return;
+            const header = parent.document.querySelector(".trip-table-header");
+            if (!header) return;
+            const headerBox = header.closest('[data-testid="stElementContainer"]');
+            const rowBox = btn.closest('[data-testid="stElementContainer"]');
+            if (!headerBox || !rowBox || headerBox.parentElement !== rowBox.parentElement) return;
+            let afterHeader = false;
+            for (const child of headerBox.parentElement.children) {
+              if (child === headerBox) { afterHeader = true; continue; }
+              if (!afterHeader) continue;
+              if (child !== rowBox) continue;
+              const p = btn.querySelector("p") || btn;
+              const crossed = btn.getAttribute("kind") !== "primary";
+              btn.setAttribute("kind", crossed ? "primary" : "secondary");
+              if (crossed) {
+                p.style.color = "#ef5350";
+                p.style.textDecoration = "line-through";
+              } else {
+                p.style.color = "#fafafa";
+                p.style.textDecoration = "none";
+              }
+              return;
+            }
+          }, true);
+        })();
+        </script>
+        """,
+        height=0,
+        scrolling=False,
+    )
+
+
+@st.fragment
+def _trip_list_fragment(table_rows: list[dict[str, str]]) -> None:
+    """Trip list in a fragment rerun (fast) with instant client-side styling."""
+    _mount_trip_instant_click()
+    crossed_off = set(st.session_state.get("trip_crossed") or ())
     st.markdown(
         '<div class="trip-table-header"><span>Amt</span><span>Ingredient</span></div>',
         unsafe_allow_html=True,
@@ -398,7 +452,10 @@ def page_next_trip() -> None:
 
     current_keys = {row.display_name for row in result.shopping_list}
     st.session_state.trip_current_keys = current_keys
-    crossed_off = _load_trip_crossed(sb, current_keys)
+    keys_token = frozenset(current_keys)
+    if st.session_state.get("trip_keys_token") != keys_token:
+        _load_trip_crossed(sb, current_keys)
+        st.session_state.trip_keys_token = keys_token
 
     table_rows = [
         {
@@ -409,7 +466,7 @@ def page_next_trip() -> None:
         for row in result.shopping_list
     ]
 
-    render_trip_shopping_list(table_rows, crossed_off)
+    _trip_list_fragment(table_rows)
 
 
 def page_ingredients() -> None:

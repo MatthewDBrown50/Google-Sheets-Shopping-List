@@ -1,10 +1,17 @@
-"""Return True when the trip row button looks crossed off (red + strikethrough)."""
+"""Visual checks for trip list row buttons."""
 
 from __future__ import annotations
 
+from playwright.sync_api import Page
+
+
+def trip_row_button(page: Page, name_pattern: str):
+    import re
+
+    return page.get_by_role("button", name=re.compile(name_pattern)).first
+
 
 def trip_row_looks_crossed(button_locator) -> bool:
-    """Crossed rows use kind=primary plus red strikethrough label styling."""
     return button_locator.evaluate(
         """(el) => {
         const p = el.querySelector('p') || el;
