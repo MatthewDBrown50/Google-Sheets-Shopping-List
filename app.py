@@ -28,6 +28,14 @@ def format_amount(amount: float) -> str:
     return f"{round(float(amount), 2):.2f}".rstrip("0").rstrip(".")
 
 
+# Unit separator — splits trip row button labels into Loc/Amt/Ingredient in the browser.
+_TRIP_ROW_SEP = "\x1f"
+
+
+def format_trip_row_label(loc: str, amt: str, ingredient: str) -> str:
+    return f"{_TRIP_ROW_SEP}{loc}{_TRIP_ROW_SEP}{amt}{_TRIP_ROW_SEP}{ingredient}"
+
+
 def _load_trip_crossed(sb, current_keys: set[str]) -> set[str]:
     """Load crossed-off keys from Supabase (source of truth when rendering the trip page)."""
     crossed = trip_checked.fetch_trip_checked_items(sb) & current_keys
@@ -76,6 +84,53 @@ def _mount_trip_instant_click() -> None:
         <script>
         (() => {
           const parent = window.parent;
+          const SEP = "\\u001f";
+
+          function structureTripRow(p) {
+            if (p.dataset.tripStructured) return;
+            const parts = p.textContent.split(SEP);
+            if (parts.length < 4) return;
+            const [, loc, amt, ing] = parts;
+            p.textContent = "";
+            p.classList.add("trip-table-row");
+            for (const [cls, val] of [
+              ["trip-loc", loc],
+              ["trip-amt", amt],
+              ["trip-ing", ing],
+            ]) {
+              const span = document.createElement("span");
+              span.className = cls;
+              span.textContent = val;
+              p.appendChild(span);
+            }
+            p.dataset.tripStructured = "1";
+          }
+
+          function structureAllTripRows() {
+            const header = parent.document.querySelector(".trip-table-header");
+            if (!header) return;
+            const headerBox = header.closest('[data-testid="stElementContainer"]');
+            if (!headerBox || !headerBox.parentElement) return;
+            let afterHeader = false;
+            for (const child of headerBox.parentElement.children) {
+              if (child === headerBox) { afterHeader = true; continue; }
+              if (!afterHeader) continue;
+              const p = child.querySelector("button p");
+              if (p) structureTripRow(p);
+            }
+          }
+
+          if (!parent.__tripRowStructObserver) {
+            parent.__tripRowStructObserver = new MutationObserver(() => {
+              structureAllTripRows();
+            });
+            parent.__tripRowStructObserver.observe(parent.document.body, {
+              childList: true,
+              subtree: true,
+            });
+          }
+          structureAllTripRows();
+
           if (parent.__tripInstantClick) return;
           parent.__tripInstantClick = true;
           parent.document.addEventListener("click", (event) => {
@@ -124,7 +179,7 @@ def _trip_list_fragment(table_rows: list[dict[str, str]]) -> None:
     for row in table_rows:
         item_key = row["key"]
         is_crossed = item_key in crossed_off
-        label = f"{row['loc']:<4} {row['amt']:>4}  {row['ingredient']}".strip()
+        label = format_trip_row_label(row["loc"], row["amt"], row["ingredient"])
         st.button(
             label,
             key=_trip_row_btn_key(item_key),
@@ -192,14 +247,26 @@ APP_CSS = """
         box-shadow: none !important;
     }
 
-    .trip-table-header {
+    .trip-table-header,
+    .trip-table-row {
         display: grid;
         grid-template-columns: 3.5rem 3.25rem 1fr;
         gap: 0.5rem;
+        align-items: start;
+        width: 100%;
+    }
+    .trip-table-header {
         padding: 0.5rem 0;
         border-bottom: 1px solid #757575;
         color: #b0b0b0;
         font-weight: 600;
+    }
+    .trip-amt {
+        text-align: right;
+    }
+    div[data-testid="stElementContainer"]:has(.trip-table-header)
+        ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button p.trip-table-row {
+        white-space: normal !important;
     }
     div[data-testid="stElementContainer"]:has(.trip-table-header)
         ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button {
@@ -252,7 +319,9 @@ APP_CSS = """
         color: #ef5350 !important;
     }
     div[data-testid="stElementContainer"]:has(.trip-table-header)
-        ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button[kind="primary"] p {
+        ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button[kind="primary"] p,
+    div[data-testid="stElementContainer"]:has(.trip-table-header)
+        ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button[kind="primary"] p span {
         color: #ef5350 !important;
         text-decoration: line-through !important;
     }
