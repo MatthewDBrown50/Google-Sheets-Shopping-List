@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import importlib
 import os
 import threading
 
@@ -12,18 +11,9 @@ import extra_streamlit_components as stx
 import streamlit as st
 import streamlit.components.v1 as components
 
-# Reload core/db modules so Streamlit hot-reloads pick up model field changes.
-import core.models
-import core.generator
-import db.client
-
-importlib.reload(core.models)
-importlib.reload(core.generator)
-importlib.reload(db.client)
-
 from core.generator import generate_shopping_list
 from core.models import RecipeIngredient
-import db.client as db
+from db import client as db
 from db import trip_checked
 from db.instructions_store import recipe_instructions
 
@@ -36,13 +26,6 @@ def item_location(obj: object) -> str:
 def format_amount(amount: float) -> str:
     """Format shopping-list amounts: up to 2 decimal places, no trailing zeros."""
     return f"{round(float(amount), 2):.2f}".rstrip("0").rstrip(".")
-
-
-def format_trip_row_label(loc: str, amt: str, ingredient: str) -> str:
-    """Fixed-width Loc / Amt columns for monospace alignment in trip list rows."""
-    loc_col = f"{(loc or ''):<4}"[:4]
-    amt_col = f"{(amt or ''):>4}"[:4] if amt else "    "
-    return f"{loc_col} {amt_col}  {ingredient}".rstrip()
 
 
 def _load_trip_crossed(sb, current_keys: set[str]) -> set[str]:
@@ -141,7 +124,7 @@ def _trip_list_fragment(table_rows: list[dict[str, str]]) -> None:
     for row in table_rows:
         item_key = row["key"]
         is_crossed = item_key in crossed_off
-        label = format_trip_row_label(row["loc"], row["amt"], row["ingredient"])
+        label = f"{row['loc']:<4} {row['amt']:>4}  {row['ingredient']}".strip()
         st.button(
             label,
             key=_trip_row_btn_key(item_key),
