@@ -68,6 +68,33 @@ def main() -> int:
         page.wait_for_timeout(3000)
         stored = trip_checked.fetch_trip_checked_items(sb)
         print(f"SUPABASE_AFTER_CLICK={sorted(stored)}")
+        visible = page.evaluate(
+            """() => {
+            const header = document.querySelector('.trip-table-header');
+            const headerBox = header.closest('[data-testid="stElementContainer"]');
+            let afterHeader = false;
+            for (const child of headerBox.parentElement.children) {
+              if (child === headerBox) { afterHeader = true; continue; }
+              if (!afterHeader) continue;
+              const ing = child.querySelector('.trip-ing');
+              if (ing && ing.textContent.includes('baby spinach')) {
+                const style = getComputedStyle(ing);
+                return {
+                  ok: ing.textContent.trim().length > 0
+                    && style.visibility !== 'hidden'
+                    && style.opacity !== '0',
+                  text: ing.textContent,
+                };
+              }
+            }
+            return { ok: false, reason: 'row not found' };
+          }"""
+        )
+        print(f"ROW_VISIBLE_AFTER_RERUN={visible}")
+        if not visible.get("ok"):
+            print("FAIL: clicked row disappeared after rerun")
+            browser.close()
+            return 6
         if not visual_fast:
             print("FAIL: not visually crossed within 120ms")
             browser.close()

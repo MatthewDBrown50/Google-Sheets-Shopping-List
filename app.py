@@ -95,9 +95,12 @@ def _mount_trip_instant_click() -> None:
           const SEP = "\\u001f";
 
           function structureTripRow(p) {
-            if (!p || p.classList.contains("trip-table-row")) return;
+            if (!p) return;
             const text = p.textContent || "";
-            if (!text.includes(SEP)) return;
+            if (!text.includes(SEP)) {
+              if (p.querySelector(".trip-loc")) return;
+              return;
+            }
             const parts = text.split(SEP);
             if (parts.length < 4) return;
             const [, loc, amt, ing] = parts;
@@ -149,6 +152,7 @@ def _mount_trip_instant_click() -> None:
           }
 
           if (parent.__tripInstantClick) {
+            structureAllTripRows();
             scheduleStructureAllTripRows();
             return;
           }
@@ -284,13 +288,7 @@ APP_CSS = """
         min-width: 0;
     }
     div[data-testid="stElementContainer"]:has(.trip-table-header)
-        ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button p:not(.trip-table-row) {
-        visibility: hidden !important;
-        min-height: 1.25rem;
-    }
-    div[data-testid="stElementContainer"]:has(.trip-table-header)
         ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button p.trip-table-row {
-        visibility: visible !important;
         white-space: normal !important;
     }
     div[data-testid="stElementContainer"]:has(.trip-table-header)
