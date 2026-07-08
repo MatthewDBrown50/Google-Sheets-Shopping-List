@@ -146,15 +146,22 @@ def _mount_trip_instant_click() -> None:
               if (child === headerBox) { afterHeader = true; continue; }
               if (!afterHeader) continue;
               if (child !== rowBox) continue;
-              const p = btn.querySelector("p") || btn;
               const crossed = btn.getAttribute("kind") !== "primary";
               btn.setAttribute("kind", crossed ? "primary" : "secondary");
-              if (crossed) {
-                p.style.color = "#ef5350";
-                p.style.textDecoration = "line-through";
-              } else {
-                p.style.color = "#fafafa";
-                p.style.textDecoration = "none";
+              const spans = btn.querySelectorAll(".trip-loc, .trip-amt, .trip-ing");
+              spans.forEach((span) => {
+                if (crossed) {
+                  span.style.color = "#ef5350";
+                  span.style.textDecoration = "line-through";
+                } else {
+                  span.style.color = "";
+                  span.style.textDecoration = "";
+                }
+              });
+              const p = btn.querySelector("p");
+              if (p) {
+                p.style.color = "";
+                p.style.textDecoration = "";
               }
               return;
             }
@@ -311,15 +318,21 @@ APP_CSS = """
         color: #fafafa !important;
     }
     div[data-testid="stElementContainer"]:has(.trip-table-header)
-        ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button[kind="secondary"] p {
+        ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button[kind="secondary"] p,
+    div[data-testid="stElementContainer"]:has(.trip-table-header)
+        ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button[kind="secondary"] p span {
         color: #fafafa !important;
+        text-decoration: none !important;
     }
     div[data-testid="stElementContainer"]:has(.trip-table-header)
         ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button[kind="primary"] {
         color: #ef5350 !important;
     }
     div[data-testid="stElementContainer"]:has(.trip-table-header)
-        ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button[kind="primary"] p,
+        ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button[kind="primary"] p.trip-table-row {
+        color: inherit !important;
+        text-decoration: none !important;
+    }
     div[data-testid="stElementContainer"]:has(.trip-table-header)
         ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button[kind="primary"] p span {
         color: #ef5350 !important;

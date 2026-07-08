@@ -42,17 +42,52 @@ def main() -> int:
             const hAmt = header.children[1].getBoundingClientRect();
             const rLoc = row.querySelector('.trip-loc').getBoundingClientRect();
             const rAmt = row.querySelector('.trip-amt').getBoundingClientRect();
+            const pStyle = getComputedStyle(row);
             const tol = 2;
             return {
-              ok: Math.abs(hLoc.left - rLoc.left) <= tol && Math.abs(hAmt.left - rAmt.left) <= tol,
+              ok: Math.abs(hLoc.left - rLoc.left) <= tol
+                && Math.abs(hAmt.left - rAmt.left) <= tol
+                && pStyle.textDecorationLine === 'none',
               hLoc: hLoc.left,
               rLoc: rLoc.left,
               hAmt: hAmt.left,
               rAmt: rAmt.left,
+              rowDecoration: pStyle.textDecorationLine,
             };
           }"""
         )
-        print("ALIGNMENT", aligned)
+        print("ALIGNMENT_BEFORE", aligned)
+
+        row = page.get_by_role("button").filter(has_text="baby spinach").first
+        if row.count():
+            row.click()
+            page.wait_for_timeout(200)
+            aligned_after = page.evaluate(
+                """() => {
+                const header = document.querySelector('.trip-table-header');
+                const headerBox = header.closest('[data-testid="stElementContainer"]');
+                const rowBtn = headerBox.parentElement.querySelector(
+                  '[data-testid="stElementContainer"] ~ [data-testid="stElementContainer"] button'
+                );
+                const row = rowBtn.querySelector('p.trip-table-row');
+                const hLoc = header.children[0].getBoundingClientRect();
+                const hAmt = header.children[1].getBoundingClientRect();
+                const rLoc = row.querySelector('.trip-loc').getBoundingClientRect();
+                const rAmt = row.querySelector('.trip-amt').getBoundingClientRect();
+                const pStyle = getComputedStyle(row);
+                const tol = 2;
+                return {
+                  ok: Math.abs(hLoc.left - rLoc.left) <= tol
+                    && Math.abs(hAmt.left - rAmt.left) <= tol
+                    && pStyle.textDecorationLine === 'none',
+                  rowDecoration: pStyle.textDecorationLine,
+                };
+              }"""
+            )
+            print("ALIGNMENT_AFTER_CROSS", aligned_after)
+            if not aligned_after.get("ok"):
+                browser.close()
+                return 1
         browser.close()
         return 0 if aligned.get("ok") else 1
 

@@ -14,8 +14,9 @@ def trip_row_button(page: Page, name_pattern: str):
 def trip_row_looks_crossed(button_locator) -> bool:
     return button_locator.evaluate(
         """(el) => {
-        const p = el.querySelector('p') || el;
-        const style = getComputedStyle(p);
+        const spans = el.querySelectorAll('.trip-loc, .trip-amt, .trip-ing');
+        const target = spans.length ? spans[0] : (el.querySelector('p') || el);
+        const style = getComputedStyle(target);
         const struck = style.textDecorationLine.includes('line-through');
         const color = style.color || '';
         const red = color.includes('239, 83, 80') || color.includes('ef5350');
