@@ -95,11 +95,13 @@ def _mount_trip_instant_click() -> None:
           const SEP = "\\u001f";
 
           function structureTripRow(p) {
-            if (p.dataset.tripStructured) return;
-            const parts = p.textContent.split(SEP);
+            if (!p || p.classList.contains("trip-table-row")) return;
+            const text = p.textContent || "";
+            if (!text.includes(SEP)) return;
+            const parts = text.split(SEP);
             if (parts.length < 4) return;
             const [, loc, amt, ing] = parts;
-            p.textContent = "";
+            p.replaceChildren();
             p.classList.add("trip-table-row");
             for (const [cls, val] of [
               ["trip-loc", loc],
@@ -111,7 +113,6 @@ def _mount_trip_instant_click() -> None:
               span.textContent = val;
               p.appendChild(span);
             }
-            p.dataset.tripStructured = "1";
           }
 
           function structureAllTripRows() {
@@ -128,18 +129,29 @@ def _mount_trip_instant_click() -> None:
             }
           }
 
+          let structFrame = 0;
+          function scheduleStructureAllTripRows() {
+            if (structFrame) return;
+            structFrame = parent.requestAnimationFrame(() => {
+              structFrame = 0;
+              structureAllTripRows();
+            });
+          }
+
           if (!parent.__tripRowStructObserver) {
             parent.__tripRowStructObserver = new MutationObserver(() => {
-              structureAllTripRows();
+              scheduleStructureAllTripRows();
             });
             parent.__tripRowStructObserver.observe(parent.document.body, {
               childList: true,
               subtree: true,
             });
           }
-          structureAllTripRows();
 
-          if (parent.__tripInstantClick) return;
+          if (parent.__tripInstantClick) {
+            scheduleStructureAllTripRows();
+            return;
+          }
           parent.__tripInstantClick = true;
           parent.document.addEventListener("click", (event) => {
             const btn = event.target.closest("button");
@@ -156,24 +168,10 @@ def _mount_trip_instant_click() -> None:
               if (child !== rowBox) continue;
               const crossed = btn.getAttribute("kind") !== "primary";
               btn.setAttribute("kind", crossed ? "primary" : "secondary");
-              const spans = btn.querySelectorAll(".trip-loc, .trip-amt, .trip-ing");
-              spans.forEach((span) => {
-                if (crossed) {
-                  span.style.color = "#ef5350";
-                  span.style.textDecoration = "line-through";
-                } else {
-                  span.style.color = "";
-                  span.style.textDecoration = "";
-                }
-              });
-              const p = btn.querySelector("p");
-              if (p) {
-                p.style.color = "";
-                p.style.textDecoration = "";
-              }
               return;
             }
           }, true);
+          scheduleStructureAllTripRows();
         })();
         </script>
         """,
@@ -185,7 +183,6 @@ def _mount_trip_instant_click() -> None:
 @st.fragment
 def _trip_list_fragment(table_rows: list[dict[str, str]]) -> None:
     """Trip list in a fragment rerun (fast) with instant client-side styling."""
-    _mount_trip_instant_click()
     crossed_off = set(st.session_state.get("trip_crossed") or ())
     st.markdown(
         '<div class="trip-table-header"><span>Loc</span><span>Amt</span><span>Ingredient</span></div>',
@@ -203,6 +200,7 @@ def _trip_list_fragment(table_rows: list[dict[str, str]]) -> None:
             use_container_width=True,
             type="primary" if is_crossed else "secondary",
         )
+    _mount_trip_instant_click()
 
 
 def db_error_message(exc: Exception) -> str:
@@ -279,8 +277,20 @@ APP_CSS = """
     .trip-amt {
         text-align: right;
     }
+    .trip-loc,
+    .trip-amt,
+    .trip-ing {
+        text-decoration: none !important;
+        min-width: 0;
+    }
+    div[data-testid="stElementContainer"]:has(.trip-table-header)
+        ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button p:not(.trip-table-row) {
+        visibility: hidden !important;
+        min-height: 1.25rem;
+    }
     div[data-testid="stElementContainer"]:has(.trip-table-header)
         ~ div[data-testid="stElementContainer"] div[data-testid="stButton"] button p.trip-table-row {
+        visibility: visible !important;
         white-space: normal !important;
     }
     div[data-testid="stElementContainer"]:has(.trip-table-header)

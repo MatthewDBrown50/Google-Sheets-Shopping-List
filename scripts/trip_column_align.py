@@ -85,7 +85,29 @@ def main() -> int:
               }"""
             )
             print("ALIGNMENT_AFTER_CROSS", aligned_after)
-            if not aligned_after.get("ok"):
+            row.click()
+            page.wait_for_timeout(200)
+            aligned_uncross = page.evaluate(
+                """() => {
+                const header = document.querySelector('.trip-table-header');
+                const headerBox = header.closest('[data-testid="stElementContainer"]');
+                const rowBtn = headerBox.parentElement.querySelector(
+                  '[data-testid="stElementContainer"] ~ [data-testid="stElementContainer"] button'
+                );
+                const row = rowBtn.querySelector('p.trip-table-row');
+                const hLoc = header.children[0].getBoundingClientRect();
+                const hAmt = header.children[1].getBoundingClientRect();
+                const rLoc = row.querySelector('.trip-loc').getBoundingClientRect();
+                const rAmt = row.querySelector('.trip-amt').getBoundingClientRect();
+                const tol = 2;
+                return {
+                  ok: Math.abs(hLoc.left - rLoc.left) <= tol
+                    && Math.abs(hAmt.left - rAmt.left) <= tol,
+                };
+              }"""
+            )
+            print("ALIGNMENT_AFTER_UNCROSS", aligned_uncross)
+            if not aligned_after.get("ok") or not aligned_uncross.get("ok"):
                 browser.close()
                 return 1
         browser.close()
