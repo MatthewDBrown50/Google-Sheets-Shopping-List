@@ -95,7 +95,13 @@ Theme (dark) and layout are in [`.streamlit/config.toml`](.streamlit/config.toml
 
 ## Upgrading an existing Supabase project
 
-Run new migration blocks from [`db/schema.sql`](db/schema.sql) in the SQL Editor as needed. For crossed-off persistence:
+Run new migration blocks from [`db/schema.sql`](db/schema.sql) in the SQL Editor as needed. For ingredient store location (Loc column on Next Trip):
+
+```sql
+alter table ingredients add column if not exists location text not null default '';
+```
+
+For crossed-off persistence:
 
 ```sql
 create table if not exists trip_checked_items (

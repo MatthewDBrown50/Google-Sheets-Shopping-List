@@ -59,6 +59,16 @@ class GeneratorTests(unittest.TestCase):
         names = [r.display_name for r in result.shopping_list if not r.is_other]
         self.assertEqual(names, sorted(names, key=str.lower))
 
+    def test_location_on_shopping_list_rows(self):
+        located = [
+            Ingredient(1, "olive oil", "Tbsp", 120, "A3"),
+            Ingredient(2, "carrots", "ct", 25, ""),
+        ]
+        result = generate_shopping_list(located, [self.recipe_a], [10], [])
+        by_name = {r.display_name: r for r in result.shopping_list if not r.is_other}
+        self.assertEqual(by_name["olive oil (Tbsp)"].location, "A3")
+        self.assertEqual(by_name["carrots (ct)"].location, "")
+
     def test_other_items_appended(self):
         result = generate_shopping_list(
             self.ingredients, [self.recipe_a], [10], ["paper towels", "soap"]

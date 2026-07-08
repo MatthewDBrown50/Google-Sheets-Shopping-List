@@ -7,6 +7,7 @@ class Ingredient:
     name: str
     unit: str
     calories_per_unit: float
+    location: str = ""
 
     @property
     def display_name(self) -> str:
@@ -50,6 +51,7 @@ class ShoppingListRow:
     amount: float
     display_name: str
     is_other: bool = False
+    location: str = ""
 
 
 @dataclass

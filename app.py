@@ -23,6 +23,13 @@ def format_amount(amount: float) -> str:
     return f"{round(float(amount), 2):.2f}".rstrip("0").rstrip(".")
 
 
+def format_trip_row_label(loc: str, amt: str, ingredient: str) -> str:
+    """Fixed-width Loc / Amt columns for monospace alignment in trip list rows."""
+    loc_col = f"{(loc or ''):<4}"[:4]
+    amt_col = f"{(amt or ''):>4}"[:4] if amt else "    "
+    return f"{loc_col} {amt_col}  {ingredient}".rstrip()
+
+
 def _load_trip_crossed(sb, current_keys: set[str]) -> set[str]:
     """Load crossed-off keys from Supabase (source of truth when rendering the trip page)."""
     crossed = trip_checked.fetch_trip_checked_items(sb) & current_keys
@@ -113,13 +120,13 @@ def _trip_list_fragment(table_rows: list[dict[str, str]]) -> None:
     _mount_trip_instant_click()
     crossed_off = set(st.session_state.get("trip_crossed") or ())
     st.markdown(
-        '<div class="trip-table-header"><span>Amt</span><span>Ingredient</span></div>',
+        '<div class="trip-table-header"><span>Loc</span><span>Amt</span><span>Ingredient</span></div>',
         unsafe_allow_html=True,
     )
     for row in table_rows:
         item_key = row["key"]
         is_crossed = item_key in crossed_off
-        label = f"{row['amt']:>4}  {row['ingredient']}".strip()
+        label = format_trip_row_label(row["loc"], row["amt"], row["ingredient"])
         st.button(
             label,
             key=_trip_row_btn_key(item_key),
@@ -189,7 +196,7 @@ APP_CSS = """
 
     .trip-table-header {
         display: grid;
-        grid-template-columns: 3.25rem 1fr;
+        grid-template-columns: 3.5rem 3.25rem 1fr;
         gap: 0.5rem;
         padding: 0.5rem 0;
         border-bottom: 1px solid #757575;
@@ -477,6 +484,7 @@ def page_next_trip() -> None:
     table_rows = [
         {
             "key": row.display_name,
+            "loc": "" if row.is_other else row.location,
             "amt": "" if row.is_other else format_amount(row.amount),
             "ingredient": row.display_name,
         }
@@ -502,6 +510,7 @@ def page_ingredients() -> None:
             for i in ingredients
             if q in i.name.lower()
             or q in i.unit.lower()
+            or q in i.location.lower()
             or q in i.display_name.lower()
         ]
 
@@ -510,6 +519,7 @@ def page_ingredients() -> None:
             {
                 "Name": i.name,
                 "Unit": i.unit,
+                "Loc": i.location,
                 "Calories / unit": i.calories_per_unit,
             }
             for i in filtered
@@ -522,13 +532,14 @@ def page_ingredients() -> None:
         with st.form("add_ingredient", clear_on_submit=True):
             name = st.text_input("Name", placeholder="e.g. olive oil")
             unit = st.text_input("Unit", placeholder="e.g. Tbsp")
+            location = st.text_input("Loc", placeholder="e.g. A3")
             calories = st.number_input("Calories per unit", min_value=0.0, step=1.0, value=0.0)
             if st.form_submit_button("Add ingredient", type="primary", use_container_width=True):
                 if not name.strip():
                     st.error("Name is required.")
                 else:
                     try:
-                        db.create_ingredient(sb, name, unit, calories)
+                        db.create_ingredient(sb, name, unit, calories, location)
                         st.success(f"Added {name.strip()}.")
                         st.rerun()
                     except Exception as exc:
@@ -549,6 +560,7 @@ def page_ingredients() -> None:
         with st.form("edit_ingredient"):
             name = st.text_input("Name", value=ing.name)
             unit = st.text_input("Unit", value=ing.unit)
+            location = st.text_input("Loc", value=ing.location)
             calories = st.number_input(
                 "Calories per unit",
                 min_value=0.0,
@@ -560,7 +572,7 @@ def page_ingredients() -> None:
                     st.error("Name is required.")
                 else:
                     try:
-                        db.update_ingredient(sb, ing.id, name, unit, calories)
+                        db.update_ingredient(sb, ing.id, name, unit, calories, location)
                         st.success("Ingredient updated.")
                         st.rerun()
                     except Exception as exc:

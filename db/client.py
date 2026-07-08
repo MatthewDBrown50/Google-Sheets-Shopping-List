@@ -30,6 +30,7 @@ def _ingredient_from_row(row: dict[str, Any]) -> Ingredient:
         name=row["name"],
         unit=row.get("unit") or "",
         calories_per_unit=float(row.get("calories_per_unit") or 0),
+        location=row.get("location") or "",
     )
 
 
@@ -108,6 +109,7 @@ def create_ingredient(
     name: str,
     unit: str,
     calories_per_unit: float,
+    location: str = "",
 ) -> int:
     row = (
         client.table("ingredients")
@@ -115,6 +117,7 @@ def create_ingredient(
             {
                 "name": name.strip(),
                 "unit": unit.strip(),
+                "location": location.strip(),
                 "calories_per_unit": calories_per_unit,
             }
         )
@@ -130,11 +133,13 @@ def update_ingredient(
     name: str,
     unit: str,
     calories_per_unit: float,
+    location: str = "",
 ) -> None:
     client.table("ingredients").update(
         {
             "name": name.strip(),
             "unit": unit.strip(),
+            "location": location.strip(),
             "calories_per_unit": calories_per_unit,
         }
     ).eq("id", ingredient_id).execute()

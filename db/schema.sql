@@ -4,6 +4,7 @@ create table if not exists ingredients (
   id bigint generated always as identity primary key,
   name text not null,
   unit text not null default '',
+  location text not null default '',
   calories_per_unit numeric not null default 0,
   created_at timestamptz not null default now(),
   unique (name, unit)
@@ -62,6 +63,9 @@ create policy "Allow all on trip_checked_items" on trip_checked_items for all us
 
 -- Run once when upgrading to add recipe instructions:
 -- alter table recipes add column if not exists instructions text not null default '';
+
+-- Run once when upgrading to add ingredient store location (Loc on Next Trip):
+-- alter table ingredients add column if not exists location text not null default '';
 
 -- Run once when upgrading to persist Next Trip crossed-off items:
 -- create table if not exists trip_checked_items (
