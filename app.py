@@ -23,6 +23,14 @@ def item_location(obj: object) -> str:
     return str(getattr(obj, "location", "") or "")
 
 
+def trip_list_sort_key(row: object) -> tuple[str, str]:
+    """Next Trip sort: Loc ascending, then ingredient name. Other items stay last."""
+    display_name = str(getattr(row, "display_name", "") or "")
+    if getattr(row, "is_other", False):
+        return ("\uffff", display_name.lower())
+    return (item_location(row).lower(), display_name.lower())
+
+
 def format_amount(amount: float) -> str:
     """Format shopping-list amounts: up to 2 decimal places, no trailing zeros."""
     return f"{round(float(amount), 2):.2f}".rstrip("0").rstrip(".")
@@ -561,6 +569,7 @@ def page_next_trip() -> None:
         _load_trip_crossed(sb, current_keys)
         st.session_state.trip_keys_token = keys_token
 
+    trip_rows = sorted(result.shopping_list, key=trip_list_sort_key)
     table_rows = [
         {
             "key": row.display_name,
@@ -568,7 +577,7 @@ def page_next_trip() -> None:
             "amt": "" if row.is_other else format_amount(row.amount),
             "ingredient": row.display_name,
         }
-        for row in result.shopping_list
+        for row in trip_rows
     ]
 
     _trip_list_fragment(table_rows)
