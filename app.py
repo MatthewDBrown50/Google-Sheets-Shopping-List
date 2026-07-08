@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import importlib
 import os
 import threading
 
@@ -11,11 +12,25 @@ import extra_streamlit_components as stx
 import streamlit as st
 import streamlit.components.v1 as components
 
+# Reload core/db modules so Streamlit hot-reloads pick up model field changes.
+import core.models
+import core.generator
+import db.client
+
+importlib.reload(core.models)
+importlib.reload(core.generator)
+importlib.reload(db.client)
+
 from core.generator import generate_shopping_list
 from core.models import RecipeIngredient
-from db import client as db
+import db.client as db
 from db import trip_checked
 from db.instructions_store import recipe_instructions
+
+
+def item_location(obj: object) -> str:
+    """Ingredient / shopping-list row location (safe if a stale model class is loaded)."""
+    return str(getattr(obj, "location", "") or "")
 
 
 def format_amount(amount: float) -> str:
@@ -484,7 +499,7 @@ def page_next_trip() -> None:
     table_rows = [
         {
             "key": row.display_name,
-            "loc": "" if row.is_other else row.location,
+            "loc": "" if row.is_other else item_location(row),
             "amt": "" if row.is_other else format_amount(row.amount),
             "ingredient": row.display_name,
         }
@@ -510,7 +525,7 @@ def page_ingredients() -> None:
             for i in ingredients
             if q in i.name.lower()
             or q in i.unit.lower()
-            or q in i.location.lower()
+            or q in item_location(i).lower()
             or q in i.display_name.lower()
         ]
 
@@ -519,7 +534,7 @@ def page_ingredients() -> None:
             {
                 "Name": i.name,
                 "Unit": i.unit,
-                "Loc": i.location,
+                "Loc": item_location(i),
                 "Calories / unit": i.calories_per_unit,
             }
             for i in filtered
@@ -560,7 +575,7 @@ def page_ingredients() -> None:
         with st.form("edit_ingredient"):
             name = st.text_input("Name", value=ing.name)
             unit = st.text_input("Unit", value=ing.unit)
-            location = st.text_input("Loc", value=ing.location)
+            location = st.text_input("Loc", value=item_location(ing))
             calories = st.number_input(
                 "Calories per unit",
                 min_value=0.0,

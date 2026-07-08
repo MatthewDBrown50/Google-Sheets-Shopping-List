@@ -101,7 +101,7 @@ def generate_shopping_list(
             ShoppingListRow(
                 amount=amount,
                 display_name=ingredient.display_name,
-                location=ingredient.location,
+                location=getattr(ingredient, "location", "") or "",
             )
         )
 
